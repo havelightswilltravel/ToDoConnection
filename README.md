@@ -42,4 +42,4 @@ Vercel (or Netlify): import this repo, add the four `VITE_*` variables, deploy. 
 
 ## Brand colors
 
-Edit the variables at the top of `src/styles.css` (`--brand`, `--accent`).
+Edit the variables at the top of `src/styles.css` (`--brand`, `--gold`, `--navy`).

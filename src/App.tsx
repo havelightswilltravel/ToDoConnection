@@ -157,7 +157,7 @@ export default function App() {
     return (
       <div className="center">
         <div className="hero">
-          <div className="logo">✓</div>
+          <img className="logo" src="/logo.png" alt="HLWT" />
           <h1>ToDoConnection</h1>
           <p>Your Microsoft To Do, as a board.</p>
           <button className="btn primary big" onClick={() => void signIn()}>Sign in with Microsoft</button>
@@ -169,7 +169,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand"><span className="logo sm">✓</span> ToDoConnection</div>
+        <div className="brand"><img className="logo sm" src="/logo.png" alt="HLWT" /> ToDoConnection</div>
         {demoMode && <span className="demo">Demo data</span>}
         <span style={{ flex: 1 }} />
         <button className="btn" onClick={newList}>+ New list</button>
