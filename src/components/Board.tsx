@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  DndContext, DragOverlay, PointerSensor, useDraggable, useSensor, useSensors,
+  DndContext, DragOverlay, MouseSensor, TouchSensor, useDraggable, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
@@ -21,6 +21,8 @@ function Card({ task, onOpen, onToggle, ghost }: {
           className={`check ${done ? 'on' : ''}`}
           aria-label={done ? 'Mark not done' : 'Mark done'}
           onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onToggle?.() }}
         >
           {done && <svg viewBox="0 0 12 12" width="10" height="10"><path d="M2.5 6.5l2.5 2.5 4.5-5.5" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>}
@@ -104,7 +106,11 @@ export default function Board({ lists, tasks, onOpen, onToggle, onMove, onAdd }:
   onOpen: (t: Task) => void; onToggle: (t: Task) => void
   onMove: (t: Task, listId: string) => void; onAdd: (listId: string, title: string) => void
 }) {
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  // Mouse drags after a few px; touch needs a short press-and-hold so swiping still scrolls the board.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
+  )
   const [active, setActive] = useState<Task | null>(null)
   const [stored, setStored] = useState<string[]>(loadOrder)
 
