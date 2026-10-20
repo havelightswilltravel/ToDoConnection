@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import {
-  DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors,
+  DndContext, DragOverlay, PointerSensor, useDraggable, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
+import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { assignLabel } from '../lib/config'
 import { dueInfo } from '../lib/dates'
 import type { Task, TaskList } from '../lib/types'
@@ -48,11 +50,19 @@ function DraggableCard(props: { task: Task; onOpen: () => void; onToggle: () => 
   )
 }
 
+const COL = 'col:'
+const ORDER_KEY = 'todoconnection.listOrder'
+
+const loadOrder = (): string[] => {
+  try { return JSON.parse(localStorage.getItem(ORDER_KEY) ?? '[]') } catch { return [] }
+}
+
 function Column({ list, tasks, onOpen, onToggle, onAdd }: {
   list: TaskList; tasks: Task[]
   onOpen: (t: Task) => void; onToggle: (t: Task) => void; onAdd: (title: string) => void
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: list.id })
+  const { setNodeRef, isOver, attributes, listeners, transform, transition, isDragging } =
+    useSortable({ id: COL + list.id })
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState('')
   const submit = () => {
@@ -61,8 +71,12 @@ function Column({ list, tasks, onOpen, onToggle, onAdd }: {
     setAdding(false)
   }
   return (
-    <section ref={setNodeRef} className={`column ${isOver ? 'over' : ''}`}>
-      <header className="column-head">
+    <section
+      ref={setNodeRef}
+      className={`column ${isOver ? 'over' : ''}`}
+      style={{ transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.6 : 1, zIndex: isDragging ? 2 : undefined }}
+    >
+      <header className="column-head" {...attributes} {...listeners} title="Drag to reorder lists">
         <h2>{list.name}</h2>
         {list.isShared && <span className="shared" title="Shared list">Shared</span>}
         <span className="count">{tasks.length}</span>
@@ -92,22 +106,44 @@ export default function Board({ lists, tasks, onOpen, onToggle, onMove, onAdd }:
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   const [active, setActive] = useState<Task | null>(null)
+  const [stored, setStored] = useState<string[]>(loadOrder)
+
+  // Saved order first; lists not seen before go to the end.
+  const ordered = [...lists].sort((a, b) => {
+    const i = stored.indexOf(a.id), j = stored.indexOf(b.id)
+    return (i < 0 ? 1e9 : i) - (j < 0 ? 1e9 : j)
+  })
+
   const start = (e: DragStartEvent) => setActive(tasks.find((t) => t.id === e.active.id) ?? null)
   const end = (e: DragEndEvent) => {
     setActive(null)
-    const t = tasks.find((x) => x.id === e.active.id)
-    if (t && e.over && e.over.id !== t.listId) onMove(t, String(e.over.id))
+    const a = String(e.active.id), o = e.over ? String(e.over.id) : null
+    if (!o || a === o) return
+    if (a.startsWith(COL)) {
+      const ids = ordered.map((l) => l.id)
+      const next = arrayMove(ids, ids.indexOf(a.slice(COL.length)), ids.indexOf(o.slice(COL.length)))
+      // keep positions of lists currently hidden by filters
+      const merged = [...next, ...stored.filter((id) => !next.includes(id))]
+      setStored(merged)
+      try { localStorage.setItem(ORDER_KEY, JSON.stringify(merged)) } catch { /* private mode */ }
+      return
+    }
+    const t = tasks.find((x) => x.id === a)
+    const listId = o.slice(COL.length)
+    if (t && listId !== t.listId) onMove(t, listId)
   }
   return (
     <DndContext sensors={sensors} onDragStart={start} onDragEnd={end} onDragCancel={() => setActive(null)}>
-      <main className="board">
-        {lists.map((l) => (
-          <Column
-            key={l.id} list={l} tasks={tasks.filter((t) => t.listId === l.id)}
-            onOpen={onOpen} onToggle={onToggle} onAdd={(title) => onAdd(l.id, title)}
-          />
-        ))}
-      </main>
+      <SortableContext items={ordered.map((l) => COL + l.id)} strategy={horizontalListSortingStrategy}>
+        <main className="board">
+          {ordered.map((l) => (
+            <Column
+              key={l.id} list={l} tasks={tasks.filter((t) => t.listId === l.id)}
+              onOpen={onOpen} onToggle={onToggle} onAdd={(title) => onAdd(l.id, title)}
+            />
+          ))}
+        </main>
+      </SortableContext>
       <DragOverlay>{active ? <Card task={active} ghost /> : null}</DragOverlay>
     </DndContext>
   )
