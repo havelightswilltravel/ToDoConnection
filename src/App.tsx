@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Board from './components/Board'
 import FilterBar, { defaultFilters, type Filters } from './components/FilterBar'
 import TaskModal, { type SaveOpts } from './components/TaskModal'
@@ -25,8 +25,11 @@ export default function App() {
     setToast({ msg, err })
     setTimeout(() => setToast(null), err ? 6000 : 2500)
   }, [])
+  // Counts in-flight edits so a background refresh never overwrites a change that hasn't reached Microsoft yet.
+  const pending = useRef(0)
   const guard = useCallback(async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
-    try { return await fn() } catch (e) { say(e instanceof Error ? e.message : String(e), true) }
+    pending.current++
+    try { return await fn() } catch (e) { say(e instanceof Error ? e.message : String(e), true) } finally { pending.current-- }
   }, [say])
 
   useEffect(() => {
@@ -34,17 +37,37 @@ export default function App() {
     currentAccount().then((a) => { setAuthed(!!a); setReady(true) })
   }, [])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    await guard(async () => {
+  const editingRef = useRef<Task | null>(null)
+  editingRef.current = editing
+
+  const load = useCallback(async (background = false) => {
+    if (!background) setLoading(true)
+    try {
       const [me, ls] = await Promise.all([api.me(), api.getLists()])
+      const all = (await Promise.all(ls.map((l) => api.getTasks(l.id)))).flat()
+      if (background && pending.current > 0) return
       setUser(me)
       setLists(ls)
-      setTasks((await Promise.all(ls.map((l) => api.getTasks(l.id)))).flat())
-    })
-    setLoading(false)
-  }, [guard])
+      setTasks(all)
+    } catch (e) {
+      if (!background) say(e instanceof Error ? e.message : String(e), true)
+    } finally {
+      if (!background) setLoading(false)
+    }
+  }, [say])
   useEffect(() => { if (authed) void load() }, [authed, load])
+
+  // Auto-refresh: every minute while the tab is open, and right away when you switch back to it.
+  useEffect(() => {
+    if (!authed || demoMode) return
+    const tick = () => {
+      if (document.visibilityState === 'visible' && !editingRef.current && pending.current === 0) void load(true)
+    }
+    const id = setInterval(tick, 60_000)
+    document.addEventListener('visibilitychange', tick)
+    window.addEventListener('focus', tick)
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', tick); window.removeEventListener('focus', tick) }
+  }, [authed, load])
 
   const allLabels = useMemo(() => [...new Set(tasks.flatMap((t) => t.labels))].sort(), [tasks])
 

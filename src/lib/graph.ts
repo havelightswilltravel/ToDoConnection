@@ -1,5 +1,6 @@
 import {
   PublicClientApplication,
+  BrowserAuthError,
   InteractionRequiredAuthError,
   type AccountInfo,
 } from '@azure/msal-browser'
@@ -56,11 +57,27 @@ async function token(): Promise<string> {
   try {
     return (await m.acquireTokenSilent({ scopes: SCOPES, account })).accessToken
   } catch (e) {
-    if (e instanceof InteractionRequiredAuthError) {
+    // Silent renewal can fail (expired session) or time out (browsers that block the hidden
+    // sign-in frame: Safari, Brave, strict Chrome). Fall back to a normal Microsoft sign-in page.
+    const needsSignIn =
+      e instanceof InteractionRequiredAuthError ||
+      (e instanceof BrowserAuthError && e.errorCode !== 'interaction_in_progress')
+    if (needsSignIn && !redirectedRecently()) {
       await m.acquireTokenRedirect({ scopes: SCOPES, account })
+      return new Promise<string>(() => {}) // page is navigating away
     }
     throw e
   }
+}
+
+// Guards against a redirect loop if sign-in keeps failing.
+function redirectedRecently() {
+  try {
+    const last = Number(sessionStorage.getItem('todoconnection.lastRedirect') ?? 0)
+    if (Date.now() - last < 60_000) return true
+    sessionStorage.setItem('todoconnection.lastRedirect', String(Date.now()))
+  } catch { /* storage unavailable */ }
+  return false
 }
 
 async function call<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
