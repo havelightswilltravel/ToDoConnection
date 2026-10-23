@@ -36,6 +36,7 @@ let n = 100
 export const mockApi: Api = {
   getLists: () => wait([...lists]),
   getTasks: (id) => wait(tasks.filter((x) => x.listId === id)),
+  getAllTasks: (ls) => wait(tasks.filter((x) => ls.some((l) => l.id === x.listId))),
   async createList(name) {
     const l = { id: `l${++n}`, name, isOwner: true, isShared: false }
     lists.push(l)

@@ -27,6 +27,7 @@ export type NewTask = Omit<Task, 'id' | 'modified'>
 export interface Api {
   getLists(): Promise<TaskList[]>
   getTasks(listId: string): Promise<Task[]>
+  getAllTasks(lists: TaskList[]): Promise<Task[]>
   createList(name: string): Promise<TaskList>
   createTask(t: NewTask): Promise<Task>
   updateTask(t: Task): Promise<void>

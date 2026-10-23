@@ -5,6 +5,7 @@ import {
   type AccountInfo,
 } from '@azure/msal-browser'
 import { config } from './config'
+import { fetchAllTasks } from './batch'
 import type { Api, NewTask, Task, TaskList } from './types'
 
 const SCOPES = [
@@ -31,6 +32,8 @@ async function getMsal() {
     })
     await msal.initialize()
     await msal.handleRedirectPromise()
+    // tidy the address bar once MSAL has consumed the sign-in response
+    if (/[?&]state=/.test(window.location.search)) window.history.replaceState(null, '', window.location.pathname)
   }
   return msal
 }
@@ -81,16 +84,25 @@ function redirectedRecently() {
 }
 
 async function call<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(path.startsWith('http') ? path : GRAPH + path, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${await token()}`,
-      'Content-Type': 'application/json',
-      ...init.headers,
-    },
-  })
-  if (!res.ok) throw new Error(`Microsoft Graph ${res.status}: ${await res.text()}`)
-  return (res.status === 204 ? undefined : await res.json()) as T
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(path.startsWith('http') ? path : GRAPH + path, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${await token()}`,
+        'Content-Type': 'application/json',
+        ...init.headers,
+      },
+    })
+    // Microsoft asks us to slow down: wait the time it names (capped), then try again.
+    if ((res.status === 429 || res.status === 503) && attempt < 3) {
+      const wait = Math.min(Number(res.headers.get('Retry-After')) || 2 ** (attempt + 1), 20)
+      await new Promise((r) => setTimeout(r, wait * 1000))
+      continue
+    }
+    if (res.status === 429) throw new Error('Microsoft is rate-limiting requests (429). Wait a minute, then press Refresh.')
+    if (!res.ok) throw new Error(`Microsoft Graph ${res.status}: ${await res.text()}`)
+    return (res.status === 204 ? undefined : await res.json()) as T
+  }
 }
 
 async function all<T>(path: string): Promise<T[]> {
@@ -151,6 +163,7 @@ export const graphApi: Api = {
       isShared: l.isShared,
     }))
   },
+  getAllTasks: (lists) => fetchAllTasks(call, lists, (id, g) => fromGraph(id, g as GTask)),
   async getTasks(listId) {
     const tasks = await all<GTask>(`/me/todo/lists/${listId}/tasks?$top=100`)
     return tasks.map((t) => fromGraph(listId, t))

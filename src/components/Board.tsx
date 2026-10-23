@@ -1,16 +1,17 @@
 import { useState } from 'react'
 import {
-  DndContext, DragOverlay, MouseSensor, TouchSensor, useDraggable, useSensor, useSensors,
+  DndContext, DragOverlay, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
-import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
+import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { assignLabel } from '../lib/config'
 import { dueInfo } from '../lib/dates'
+import { useIsMobile } from '../lib/useIsMobile'
 import type { Task, TaskList } from '../lib/types'
 
-function Card({ task, onOpen, onToggle, ghost }: {
-  task: Task; onOpen?: () => void; onToggle?: () => void; ghost?: boolean
+function Card({ task, onOpen, onToggle, ghost, listName }: {
+  task: Task; onOpen?: () => void; onToggle?: () => void; ghost?: boolean; listName?: string
 }) {
   const done = task.status === 'completed'
   const due = dueInfo(task.due, done)
@@ -31,8 +32,9 @@ function Card({ task, onOpen, onToggle, ghost }: {
         {task.importance === 'high' && <span className="flag" title="High priority">●</span>}
       </div>
       {task.notes && <div className="card-notes">{task.notes}</div>}
-      {(due || task.labels.length > 0) && (
+      {(due || task.labels.length > 0 || listName) && (
         <div className="card-meta">
+          {listName && <span className="pill list">{listName}</span>}
           {due && <span className={`pill due ${due.tone}`}>{due.text}</span>}
           {task.labels.map((l) => (
             <span key={l} className={`pill label ${l === assignLabel ? 'assigned' : ''}`}>{l}</span>
@@ -43,7 +45,7 @@ function Card({ task, onOpen, onToggle, ghost }: {
   )
 }
 
-function DraggableCard(props: { task: Task; onOpen: () => void; onToggle: () => void }) {
+function DraggableCard(props: { task: Task; onOpen: () => void; onToggle: () => void; listName?: string }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: props.task.id })
   return (
     <div ref={setNodeRef} {...attributes} {...listeners} style={{ opacity: isDragging ? 0.35 : 1 }}>
@@ -53,6 +55,37 @@ function DraggableCard(props: { task: Task; onOpen: () => void; onToggle: () => 
 }
 
 const COL = 'col:'
+const ALL = 'all'
+
+function AddCard({ onAdd }: { onAdd: (title: string) => void }) {
+  const [adding, setAdding] = useState(false)
+  const [title, setTitle] = useState('')
+  const submit = () => {
+    if (title.trim()) onAdd(title.trim())
+    setTitle('')
+    setAdding(false)
+  }
+  return adding ? (
+    <input
+      autoFocus className="add-input" placeholder="Card title…" value={title}
+      onChange={(e) => setTitle(e.target.value)} onBlur={submit}
+      onKeyDown={(e) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') { setTitle(''); setAdding(false) } }}
+    />
+  ) : (
+    <button className="add-btn" onClick={() => setAdding(true)}>+ Add card</button>
+  )
+}
+
+// Phone layout: one list at a time. Tabs double as drop targets — press-and-hold a card, drag it up onto a tab to move it.
+function Tab({ id, label, count, on, onClick }: { id: string; label: string; count: number; on: boolean; onClick: () => void }) {
+  const { setNodeRef, isOver } = useDroppable({ id: COL + id, disabled: id === ALL })
+  return (
+    <button ref={setNodeRef} className={`tab ${on ? 'on' : ''} ${isOver ? 'over' : ''}`} onClick={onClick}>
+      {label} <span>{count}</span>
+    </button>
+  )
+}
+
 const ORDER_KEY = 'todoconnection.listOrder'
 
 const loadOrder = (): string[] => {
@@ -65,13 +98,6 @@ function Column({ list, tasks, onOpen, onToggle, onAdd }: {
 }) {
   const { setNodeRef, isOver, attributes, listeners, transform, transition, isDragging } =
     useSortable({ id: COL + list.id })
-  const [adding, setAdding] = useState(false)
-  const [title, setTitle] = useState('')
-  const submit = () => {
-    if (title.trim()) onAdd(title.trim())
-    setTitle('')
-    setAdding(false)
-  }
   return (
     <section
       ref={setNodeRef}
@@ -87,15 +113,7 @@ function Column({ list, tasks, onOpen, onToggle, onAdd }: {
         {tasks.map((t) => (
           <DraggableCard key={t.id} task={t} onOpen={() => onOpen(t)} onToggle={() => onToggle(t)} />
         ))}
-        {adding ? (
-          <input
-            autoFocus className="add-input" placeholder="Card title…" value={title}
-            onChange={(e) => setTitle(e.target.value)} onBlur={submit}
-            onKeyDown={(e) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') { setTitle(''); setAdding(false) } }}
-          />
-        ) : (
-          <button className="add-btn" onClick={() => setAdding(true)}>+ Add card</button>
-        )}
+        <AddCard onAdd={onAdd} />
       </div>
     </section>
   )
@@ -111,6 +129,8 @@ export default function Board({ lists, tasks, onOpen, onToggle, onMove, onAdd }:
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
   )
+  const mobile = useIsMobile()
+  const [sel, setSel] = useState(ALL)
   const [active, setActive] = useState<Task | null>(null)
   const [stored, setStored] = useState<string[]>(loadOrder)
 
@@ -136,20 +156,44 @@ export default function Board({ lists, tasks, onOpen, onToggle, onMove, onAdd }:
     }
     const t = tasks.find((x) => x.id === a)
     const listId = o.slice(COL.length)
-    if (t && listId !== t.listId) onMove(t, listId)
+    if (t && listId !== ALL && listId !== t.listId) onMove(t, listId)
   }
+  const current = sel === ALL || ordered.some((l) => l.id === sel) ? sel : ALL
+  const shown = current === ALL ? tasks : tasks.filter((t) => t.listId === current)
+  const nameOf = (id: string) => lists.find((l) => l.id === id)?.name
   return (
     <DndContext sensors={sensors} onDragStart={start} onDragEnd={end} onDragCancel={() => setActive(null)}>
-      <SortableContext items={ordered.map((l) => COL + l.id)} strategy={horizontalListSortingStrategy}>
-        <main className="board">
-          {ordered.map((l) => (
-            <Column
-              key={l.id} list={l} tasks={tasks.filter((t) => t.listId === l.id)}
-              onOpen={onOpen} onToggle={onToggle} onAdd={(title) => onAdd(l.id, title)}
-            />
-          ))}
+      {mobile ? (
+        <main className="m-board">
+          <nav className="tabs">
+            <Tab id={ALL} label="All" count={tasks.length} on={current === ALL} onClick={() => setSel(ALL)} />
+            {ordered.map((l) => (
+              <Tab key={l.id} id={l.id} label={l.name} count={tasks.filter((t) => t.listId === l.id).length} on={current === l.id} onClick={() => setSel(l.id)} />
+            ))}
+          </nav>
+          <div className="m-cards">
+            {shown.map((t) => (
+              <DraggableCard
+                key={t.id} task={t} listName={current === ALL ? nameOf(t.listId) : undefined}
+                onOpen={() => onOpen(t)} onToggle={() => onToggle(t)}
+              />
+            ))}
+            {shown.length === 0 && <p className="empty">Nothing here.</p>}
+            {current !== ALL && <AddCard onAdd={(title) => onAdd(current, title)} />}
+          </div>
         </main>
-      </SortableContext>
+      ) : (
+        <SortableContext items={ordered.map((l) => COL + l.id)} strategy={rectSortingStrategy}>
+          <main className="board">
+            {ordered.map((l) => (
+              <Column
+                key={l.id} list={l} tasks={tasks.filter((t) => t.listId === l.id)}
+                onOpen={onOpen} onToggle={onToggle} onAdd={(title) => onAdd(l.id, title)}
+              />
+            ))}
+          </main>
+        </SortableContext>
+      )}
       <DragOverlay>{active ? <Card task={active} ghost /> : null}</DragOverlay>
     </DndContext>
   )

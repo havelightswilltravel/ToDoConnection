@@ -40,17 +40,23 @@ export default function App() {
   const editingRef = useRef<Task | null>(null)
   editingRef.current = editing
 
+  const lastLoad = useRef(0)
+  const backoffUntil = useRef(0)
+
   const load = useCallback(async (background = false) => {
+    lastLoad.current = Date.now()
     if (!background) setLoading(true)
     try {
       const [me, ls] = await Promise.all([api.me(), api.getLists()])
-      const all = (await Promise.all(ls.map((l) => api.getTasks(l.id)))).flat()
+      const all = await api.getAllTasks(ls)
       if (background && pending.current > 0) return
       setUser(me)
       setLists(ls)
       setTasks(all)
     } catch (e) {
-      if (!background) say(e instanceof Error ? e.message : String(e), true)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (/rate-limiting|429/.test(msg)) backoffUntil.current = Date.now() + 5 * 60_000
+      if (!background) say(msg, true)
     } finally {
       if (!background) setLoading(false)
     }
@@ -61,7 +67,11 @@ export default function App() {
   useEffect(() => {
     if (!authed || demoMode) return
     const tick = () => {
-      if (document.visibilityState === 'visible' && !editingRef.current && pending.current === 0) void load(true)
+      const now = Date.now()
+      if (document.visibilityState !== 'visible' || editingRef.current || pending.current > 0) return
+      // focus + visibilitychange often fire together, and Microsoft throttles chatty apps
+      if (now - lastLoad.current < 45_000 || now < backoffUntil.current) return
+      void load(true)
     }
     const id = setInterval(tick, 60_000)
     document.addEventListener('visibilitychange', tick)
@@ -192,13 +202,13 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand"><img className="logo sm" src="/logo.png" alt="HLWT" /> ToDoConnection</div>
+        <div className="brand"><img className="logo sm" src="/logo.png" alt="HLWT" /> <span className="brand-name">ToDoConnection</span></div>
         {demoMode && <span className="demo">Demo data</span>}
         <span style={{ flex: 1 }} />
-        <button className="btn" onClick={newList}>+ New list</button>
-        <button className="btn" onClick={() => void load()} disabled={loading}>{loading ? 'Syncing…' : 'Refresh'}</button>
+        <button className="btn" onClick={newList} aria-label="New list">+<span className="lbl"> New list</span></button>
+        <button className="btn" onClick={() => void load()} disabled={loading} aria-label="Refresh">↻<span className="lbl">{loading ? ' Syncing…' : ' Refresh'}</span></button>
         {!demoMode && (
-          <button className="btn ghost" onClick={() => void signOut()}>{user?.name ?? 'Account'} · Sign out</button>
+          <button className="btn ghost" onClick={() => void signOut()}><span className="lbl">{user?.name ?? 'Account'} · </span>Sign out</button>
         )}
       </header>
       <FilterBar f={filters} set={setFilters} allLabels={allLabels} />
