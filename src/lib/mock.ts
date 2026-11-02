@@ -34,7 +34,7 @@ const wait = <T,>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 120))
 let n = 100
 
 export const mockApi: Api = {
-  getLists: () => wait([...lists]),
+  getLists: () => wait(localStorage.getItem('demoNoShare') ? lists.map((l) => ({ ...l, isShared: false })) : [...lists]), // demo only: previews the 'no shared list yet' state
   getTasks: (id) => wait(tasks.filter((x) => x.listId === id)),
   getAllTasks: (ls) => wait(tasks.filter((x) => ls.some((l) => l.id === x.listId))),
   async createList(name) {

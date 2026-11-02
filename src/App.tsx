@@ -5,6 +5,7 @@ import TaskModal, { type SaveOpts } from './components/TaskModal'
 import { demoMode, personLabel, who } from './lib/config'
 import { currentAccount, graphApi, signIn, signOut } from './lib/graph'
 import { describeError } from './lib/errors'
+import ShareGuide from './components/ShareGuide'
 import { mockApi } from './lib/mock'
 import { todayStr } from './lib/dates'
 import type { Task, TaskList } from './lib/types'
@@ -84,6 +85,9 @@ export default function App() {
   }, [authed, load])
 
   const { me, partner } = who(user?.email)
+  const hasShared = lists.some((l) => l.isShared)
+  const [tipHidden, setTipHidden] = useState(() => { try { return localStorage.getItem('todoconnection.shareTip') === '1' } catch { return false } })
+  const hideTip = () => { setTipHidden(true); try { localStorage.setItem('todoconnection.shareTip', '1') } catch { /* private mode */ } }
 
   const allLabels = useMemo(() => [...new Set(tasks.flatMap((t) => t.labels))].sort(), [tasks])
 
@@ -233,6 +237,10 @@ export default function App() {
           </div>
         )
       })()}
+      {lists.length > 0 && !hasShared && filters.scope === 'shared' && <ShareGuide partner={partner} full onRefresh={() => void load()} refreshing={loading} />}
+      {lists.length > 0 && !hasShared && filters.scope !== 'shared' && !tipHidden && (
+        <ShareGuide partner={partner} onOpen={() => setFilters({ ...filters, scope: 'shared' })} onDismiss={hideTip} />
+      )}
       {loading && lists.length === 0
         ? <div className="center"><div className="spinner" /></div>
         : lists.length === 0 && loadError
