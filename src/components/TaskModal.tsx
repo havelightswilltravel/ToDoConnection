@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { isPersonLabel, personLabel, type Person } from '../lib/config'
-import { todayStr } from '../lib/dates'
 import type { Importance, Status, Task, TaskList } from '../lib/types'
 
 export interface SaveOpts { notifyPartner: boolean }
@@ -15,8 +14,10 @@ export default function TaskModal({ task, lists, allLabels, me, partner, onClose
   const [t, setT] = useState(task)
   const [newLabel, setNewLabel] = useState('')
   const [notify, setNotify] = useState(true)
-  const [blockDate, setBlockDate] = useState(task.due ?? todayStr())
-  const [blockTime, setBlockTime] = useState('09:00')
+  // Calendar blocking is opt-in: collapsed and empty until someone chooses to use it.
+  const [blockOpen, setBlockOpen] = useState(false)
+  const [blockDate, setBlockDate] = useState('')
+  const [blockTime, setBlockTime] = useState('')
   const [minutes, setMinutes] = useState(60)
   const [blocking, setBlocking] = useState(false)
 
@@ -46,6 +47,7 @@ export default function TaskModal({ task, lists, allLabels, me, partner, onClose
   }
 
   const block = async () => {
+    if (!blockDate || !blockTime) return
     setBlocking(true)
     try {
       const start = new Date(`${blockDate}T${blockTime}:00`)
@@ -140,15 +142,24 @@ export default function TaskModal({ task, lists, allLabels, me, partner, onClose
         </div>
 
         <div className="panel">
-          <strong>Block time on my calendar</strong>
-          <div className="block-row">
-            <input type="date" value={blockDate} onChange={(e) => setBlockDate(e.target.value)} />
-            <input type="time" value={blockTime} onChange={(e) => setBlockTime(e.target.value)} />
-            <select value={minutes} onChange={(e) => setMinutes(+e.target.value)}>
-              {[15, 30, 45, 60, 90, 120, 180].map((m) => <option key={m} value={m}>{m >= 60 ? `${m / 60} hr` : `${m} min`}</option>)}
-            </select>
-            <button className="btn" disabled={blocking} onClick={block}>{blocking ? 'Adding…' : 'Add to calendar'}</button>
+          <div className="panel-row">
+            <div>
+              <strong>Block time on my calendar</strong>
+              {!blockOpen && <p className="hint">Optional. Nothing is added to your calendar unless you do it here.</p>}
+            </div>
+            {!blockOpen && <button className="btn" onClick={() => setBlockOpen(true)}>Choose a time…</button>}
           </div>
+          {blockOpen && (
+            <div className="block-row">
+              <input type="date" aria-label="Date" value={blockDate} onChange={(e) => setBlockDate(e.target.value)} />
+              <input type="time" aria-label="Start time" value={blockTime} onChange={(e) => setBlockTime(e.target.value)} />
+              <select aria-label="Length" value={minutes} onChange={(e) => setMinutes(+e.target.value)}>
+                {[15, 30, 45, 60, 90, 120, 180].map((m) => <option key={m} value={m}>{m >= 60 ? `${m / 60} hr` : `${m} min`}</option>)}
+              </select>
+              <button className="btn primary" disabled={blocking || !blockDate || !blockTime} onClick={block}>{blocking ? 'Adding…' : 'Add to calendar'}</button>
+              <button className="btn ghost" onClick={() => { setBlockOpen(false); setBlockDate(''); setBlockTime('') }}>Cancel</button>
+            </div>
+          )}
         </div>
 
         <footer className="modal-foot">
