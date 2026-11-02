@@ -92,8 +92,8 @@ const loadOrder = (): string[] => {
   try { return JSON.parse(localStorage.getItem(ORDER_KEY) ?? '[]') } catch { return [] }
 }
 
-function Column({ list, tasks, onOpen, onToggle, onAdd }: {
-  list: TaskList; tasks: Task[]
+function Column({ list, tasks, onOpen, onToggle, onAdd, onDeleteList }: {
+  list: TaskList; tasks: Task[]; onDeleteList: () => void
   onOpen: (t: Task) => void; onToggle: (t: Task) => void; onAdd: (title: string) => void
 }) {
   const { setNodeRef, isOver, attributes, listeners, transform, transition, isDragging } =
@@ -108,6 +108,15 @@ function Column({ list, tasks, onOpen, onToggle, onAdd }: {
         <h2>{list.name}</h2>
         {list.isShared && <span className="shared" title="Shared list">Shared</span>}
         <span className="count">{tasks.length}</span>
+        {list.canDelete && (
+          <button
+            className="col-del" aria-label={`Delete list ${list.name}`} title="Delete list"
+            onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}
+            onClick={onDeleteList}
+          >
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.6 9h6.8L12 4M6.5 7v3.5M9.5 7v3.5" /></svg>
+          </button>
+        )}
       </header>
       <div className="column-body">
         {tasks.map((t) => (
@@ -119,8 +128,8 @@ function Column({ list, tasks, onOpen, onToggle, onAdd }: {
   )
 }
 
-export default function Board({ lists, tasks, onOpen, onToggle, onMove, onAdd }: {
-  lists: TaskList[]; tasks: Task[]
+export default function Board({ lists, tasks, onOpen, onToggle, onMove, onAdd, onDeleteList }: {
+  lists: TaskList[]; tasks: Task[]; onDeleteList: (l: TaskList) => void
   onOpen: (t: Task) => void; onToggle: (t: Task) => void
   onMove: (t: Task, listId: string) => void; onAdd: (listId: string, title: string) => void
 }) {
@@ -180,6 +189,9 @@ export default function Board({ lists, tasks, onOpen, onToggle, onMove, onAdd }:
             ))}
             {shown.length === 0 && <p className="empty">Nothing here.</p>}
             {current !== ALL && <AddCard onAdd={(title) => onAdd(current, title)} />}
+            {current !== ALL && ordered.find((l) => l.id === current)?.canDelete && (
+              <button className="m-del" onClick={() => onDeleteList(ordered.find((l) => l.id === current)!)}>Delete this list</button>
+            )}
           </div>
         </main>
       ) : (
@@ -188,7 +200,7 @@ export default function Board({ lists, tasks, onOpen, onToggle, onMove, onAdd }:
             {ordered.map((l) => (
               <Column
                 key={l.id} list={l} tasks={tasks.filter((t) => t.listId === l.id)}
-                onOpen={onOpen} onToggle={onToggle} onAdd={(title) => onAdd(l.id, title)}
+                onOpen={onOpen} onToggle={onToggle} onAdd={(title) => onAdd(l.id, title)} onDeleteList={() => onDeleteList(l)}
               />
             ))}
           </main>

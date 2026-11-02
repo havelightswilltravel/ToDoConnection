@@ -124,9 +124,15 @@ export default function TaskModal({ task, lists, allLabels, me, partner, onClose
           <div className="panel-row">
             <div>
               <strong>Assign to {partner.name}</strong>
-              <p className="hint">Marks it as {partner.name}’s to do ({partnerLabel}). It stays shared with you, so you can both follow it.</p>
+              <p className={`hint ${assigned && !shared ? 'warn' : ''}`}>
+                {assigned && !shared
+                  ? `⚠ ${partner.name} can’t see this card yet — it’s in a private list. Turn on “Share with ${partner.name}” above.`
+                  : sharedLists.length === 0 && !assigned
+                    ? `Needs a shared list first, otherwise ${partner.name} would never see it. Set one up under “Share with ${partner.name}”.`
+                    : `Marks it as ${partner.name}’s to do (${partnerLabel}). It stays shared with you, so you can both follow it.`}
+              </p>
             </div>
-            <button className={`switch ${assigned ? 'on' : ''}`} onClick={toggleAssign} aria-pressed={assigned} aria-label={`Assign to ${partner.name}`}><i /></button>
+            <button className={`switch ${assigned ? 'on' : ''}`} onClick={toggleAssign} disabled={!assigned && sharedLists.length === 0} aria-pressed={assigned} aria-label={`Assign to ${partner.name}`}><i /></button>
           </div>
           {assigned && !wasAssigned && (
             <label className="inline"><input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} /> Email {partner.name} a heads-up</label>

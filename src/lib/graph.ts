@@ -167,7 +167,7 @@ const toGraph = (t: Omit<NewTask, 'listId'>) => ({
 
 export const graphApi: Api = {
   async getLists() {
-    const lists = await all<{ id: string; displayName: string; isOwner: boolean; isShared: boolean }>(
+    const lists = await all<{ id: string; displayName: string; isOwner: boolean; isShared: boolean; wellknownListName?: string }>(
       '/me/todo/lists',
     )
     return lists.map<TaskList>((l) => ({
@@ -175,6 +175,7 @@ export const graphApi: Api = {
       name: l.displayName,
       isOwner: l.isOwner,
       isShared: l.isShared,
+      canDelete: l.isOwner && (l.wellknownListName ?? 'none') === 'none',
     }))
   },
   getAllTasks: (lists) => fetchAllTasks(call, lists, (id, g) => fromGraph(id, g as GTask)),
@@ -187,7 +188,10 @@ export const graphApi: Api = {
       method: 'POST',
       body: JSON.stringify({ displayName: name }),
     })
-    return { id: l.id, name: l.displayName, isOwner: true, isShared: false }
+    return { id: l.id, name: l.displayName, isOwner: true, isShared: false, canDelete: true }
+  },
+  async deleteList(listId) {
+    await call(`/me/todo/lists/${listId}`, { method: 'DELETE' })
   },
   async createTask(t) {
     const g = await call<GTask>(`/me/todo/lists/${t.listId}/tasks`, {

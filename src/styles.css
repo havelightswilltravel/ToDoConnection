@@ -232,3 +232,11 @@ textarea { resize: vertical; }
 .banner.guide ol { margin: 0 0 4px; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
 .banner.guide .banner-actions { justify-content: flex-start; }
 @media (max-width: 700px) { .tip { margin: 8px 14px 0; border-radius: var(--r-md); } }
+
+/* list delete */
+.col-del { border: 0; background: transparent; color: var(--muted); padding: 6px; border-radius: 8px; display: grid; place-items: center; opacity: 0; transition: opacity .15s, background .15s, color .15s; }
+.column:hover .col-del, .col-del:focus-visible { opacity: 1; }
+.col-del:hover { background: rgba(255,59,48,.12); color: var(--danger); }
+@media (hover: none) { .col-del { opacity: .7; } }
+.m-del { border: 0; background: transparent; color: var(--danger); font-weight: 550; padding: 14px; margin-top: 8px; }
+.hint.warn { color: var(--danger); font-weight: 550; }

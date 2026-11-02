@@ -3,6 +3,8 @@ export interface TaskList {
   name: string
   isShared: boolean
   isOwner: boolean
+  /** false for Microsoft's built-in lists (Tasks, Flagged email) and lists someone else owns */
+  canDelete: boolean
 }
 
 export type Status = 'notStarted' | 'inProgress' | 'completed'
@@ -29,6 +31,7 @@ export interface Api {
   getTasks(listId: string): Promise<Task[]>
   getAllTasks(lists: TaskList[]): Promise<Task[]>
   createList(name: string): Promise<TaskList>
+  deleteList(listId: string): Promise<void>
   createTask(t: NewTask): Promise<Task>
   updateTask(t: Task): Promise<void>
   /** To Do has no "move" endpoint: copy into the target list, then delete the original. */

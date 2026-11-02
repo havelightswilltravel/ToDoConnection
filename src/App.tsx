@@ -168,7 +168,9 @@ export default function App() {
       }
       return true
     })
-    if (ok) say('Saved')
+    const reachable = lists.find((l) => l.id === t.listId)?.isShared
+    if (ok && t.labels.includes(personLabel(partner)) && !reachable) say(`Saved — but ${partner.name} can’t see this card yet, because it’s in a private list. Move it to a shared list.`, true)
+    else if (ok) say('Saved')
     else void load()
   }
 
@@ -186,6 +188,18 @@ export default function App() {
     }))
     if (ev) say('Added to your calendar')
     else throw new Error('calendar')
+  }
+
+  const deleteList = async (l: TaskList) => {
+    const n = tasks.filter((t) => t.listId === l.id).length
+    const msg =
+      `Delete the list “${l.name}”${n ? ` and its ${n} card${n > 1 ? 's' : ''}` : ''} from Microsoft To Do?\n\nThis can’t be undone.` +
+      (l.isShared ? `\n\nThis list is shared, so it will disappear for ${partner.name} too.` : '')
+    if (!confirm(msg)) return
+    setLists((p) => p.filter((x) => x.id !== l.id))
+    setTasks((p) => p.filter((t) => t.listId !== l.id))
+    if (!(await guard(async () => (await api.deleteList(l.id), true)))) void load()
+    else say('List deleted')
   }
 
   const newList = async () => {
@@ -245,7 +259,7 @@ export default function App() {
         ? <div className="center"><div className="spinner" /></div>
         : lists.length === 0 && loadError
           ? null
-          : <Board lists={visibleLists} tasks={visibleTasks} onOpen={setEditing} onToggle={toggle} onMove={move} onAdd={add} />}
+          : <Board lists={visibleLists} tasks={visibleTasks} onOpen={setEditing} onToggle={toggle} onMove={move} onAdd={add} onDeleteList={deleteList} />}
       {editing && (
         <TaskModal
           task={editing} lists={lists} allLabels={allLabels} me={me} partner={partner}

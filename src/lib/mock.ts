@@ -8,10 +8,10 @@ const day = (offset: number) => {
 }
 
 let lists: TaskList[] = [
-  { id: 'l1', name: 'Inbox', isOwner: true, isShared: false },
-  { id: 'l2', name: 'This Week', isOwner: true, isShared: false },
-  { id: 'l3', name: 'Waiting On', isOwner: true, isShared: false },
-  { id: 'l4', name: 'Shared with Les', isOwner: true, isShared: true },
+  { id: 'l1', name: 'Inbox', isOwner: true, isShared: false, canDelete: false },
+  { id: 'l2', name: 'This Week', isOwner: true, isShared: false, canDelete: true },
+  { id: 'l3', name: 'Waiting On', isOwner: true, isShared: false, canDelete: true },
+  { id: 'l4', name: 'Shared with Les', isOwner: true, isShared: true, canDelete: true },
 ]
 
 const t = (id: string, listId: string, title: string, o: Partial<Task> = {}): Task => ({
@@ -38,9 +38,14 @@ export const mockApi: Api = {
   getTasks: (id) => wait(tasks.filter((x) => x.listId === id)),
   getAllTasks: (ls) => wait(tasks.filter((x) => ls.some((l) => l.id === x.listId))),
   async createList(name) {
-    const l = { id: `l${++n}`, name, isOwner: true, isShared: false }
+    const l = { id: `l${++n}`, name, isOwner: true, isShared: false, canDelete: true }
     lists.push(l)
     return wait(l)
+  },
+  async deleteList(id) {
+    lists = lists.filter((l) => l.id !== id)
+    tasks = tasks.filter((x) => x.listId !== id)
+    return wait(undefined)
   },
   async createTask(nt) {
     const task = { ...nt, id: `t${++n}`, modified: new Date().toISOString() }
