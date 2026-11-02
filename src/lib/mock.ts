@@ -1,4 +1,4 @@
-import { assignLabel } from './config'
+const assignLabel = '@Les'
 import type { Api, Task, TaskList } from './types'
 
 const day = (offset: number) => {
@@ -66,5 +66,6 @@ export const mockApi: Api = {
   async sendMail() {
     return wait(undefined)
   },
-  me: () => wait({ name: 'Kyle', email: 'kyle@hlwt.com' }),
+  // demo only: localStorage.demoUser = 'les' previews the app as Les
+  me: () => wait(localStorage.getItem('demoUser') === 'les' ? { name: 'Les', email: 'lbanks@hlwt.com' } : { name: 'Kyle', email: 'kyle@hlwt.com' }),
 }

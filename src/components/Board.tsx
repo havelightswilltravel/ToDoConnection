@@ -5,7 +5,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { assignLabel } from '../lib/config'
+import { isPersonLabel } from '../lib/config'
 import { dueInfo } from '../lib/dates'
 import { useIsMobile } from '../lib/useIsMobile'
 import type { Task, TaskList } from '../lib/types'
@@ -37,7 +37,7 @@ function Card({ task, onOpen, onToggle, ghost, listName }: {
           {listName && <span className="pill list">{listName}</span>}
           {due && <span className={`pill due ${due.tone}`}>{due.text}</span>}
           {task.labels.map((l) => (
-            <span key={l} className={`pill label ${l === assignLabel ? 'assigned' : ''}`}>{l}</span>
+            <span key={l} className={`pill label ${isPersonLabel(l) ? 'assigned' : ''}`}>{l}</span>
           ))}
         </div>
       )}

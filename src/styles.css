@@ -221,3 +221,4 @@ textarea { resize: vertical; }
 .banner code { display: block; margin-top: 6px; word-break: break-all; }
 .banner-actions { display: flex; gap: 8px; margin-top: 12px; justify-content: center; }
 @media (max-width: 700px) { .banner { margin: 10px 14px 0; } .banner.big { margin: 24px 14px; } }
+.switch:disabled { opacity: .4; cursor: not-allowed; }

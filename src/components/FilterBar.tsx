@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { assignLabel, config } from '../lib/config'
+import { isPersonLabel, type Person } from '../lib/config'
 import { useIsMobile } from '../lib/useIsMobile'
 
 export interface Filters {
   q: string
-  scope: 'all' | 'mine' | 'shared' | 'assigned'
+  scope: 'all' | 'mine' | 'shared' | 'assigned' | 'tome'
   labels: string[]
   due: 'any' | 'overdue' | 'week' | 'none'
   showDone: boolean
@@ -12,8 +12,8 @@ export interface Filters {
 
 export const defaultFilters: Filters = { q: '', scope: 'all', labels: [], due: 'any', showDone: false }
 
-export default function FilterBar({ f, set, allLabels }: {
-  f: Filters; set: (f: Filters) => void; allLabels: string[]
+export default function FilterBar({ f, set, allLabels, partner }: {
+  f: Filters; set: (f: Filters) => void; allLabels: string[]; partner: Person
 }) {
   const mobile = useIsMobile()
   const [open, setOpen] = useState(false)
@@ -21,7 +21,7 @@ export default function FilterBar({ f, set, allLabels }: {
   const toggle = (l: string) =>
     set({ ...f, labels: f.labels.includes(l) ? f.labels.filter((x) => x !== l) : [...f.labels, l] })
   const scopes: [Filters['scope'], string][] = [
-    ['all', 'Everything'], ['mine', 'Mine'], ['shared', 'Shared'], ['assigned', `Assigned to ${config.integratorName}`],
+    ['all', 'Everything'], ['mine', 'Mine'], ['shared', 'Shared'], ['assigned', `Assigned to ${partner.name}`], ['tome', 'Assigned to me'],
   ]
   const segmented = (
     <div className="segmented">
@@ -44,7 +44,7 @@ export default function FilterBar({ f, set, allLabels }: {
         Show completed
       </label>
       <div className="chips">
-        {allLabels.filter((l) => l !== assignLabel).map((l) => (
+        {allLabels.filter((l) => !isPersonLabel(l)).map((l) => (
           <button key={l} className={`chip ${f.labels.includes(l) ? 'on' : ''}`} onClick={() => toggle(l)}>{l}</button>
         ))}
       </div>

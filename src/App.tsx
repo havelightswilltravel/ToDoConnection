@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Board from './components/Board'
 import FilterBar, { defaultFilters, type Filters } from './components/FilterBar'
 import TaskModal, { type SaveOpts } from './components/TaskModal'
-import { assignLabel, config, demoMode } from './lib/config'
+import { demoMode, personLabel, who } from './lib/config'
 import { currentAccount, graphApi, signIn, signOut } from './lib/graph'
 import { describeError } from './lib/errors'
 import { mockApi } from './lib/mock'
@@ -83,6 +83,8 @@ export default function App() {
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', tick); window.removeEventListener('focus', tick) }
   }, [authed, load])
 
+  const { me, partner } = who(user?.email)
+
   const allLabels = useMemo(() => [...new Set(tasks.flatMap((t) => t.labels))].sort(), [tasks])
 
   const visibleTasks = useMemo(() => {
@@ -95,7 +97,8 @@ export default function App() {
         if (!filters.showDone && t.status === 'completed') return false
         if (filters.scope === 'mine' && shared.has(t.listId)) return false
         if (filters.scope === 'shared' && !shared.has(t.listId)) return false
-        if (filters.scope === 'assigned' && !t.labels.includes(assignLabel)) return false
+        if (filters.scope === 'assigned' && !t.labels.includes(personLabel(partner))) return false
+        if (filters.scope === 'tome' && !t.labels.includes(personLabel(me))) return false
         if (q && !`${t.title} ${t.notes} ${t.labels.join(' ')}`.toLowerCase().includes(q)) return false
         if (filters.labels.some((l) => !t.labels.includes(l))) return false
         if (filters.due === 'overdue' && !(t.due && t.due < today)) return false
@@ -104,10 +107,10 @@ export default function App() {
         return true
       })
       .sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999'))
-  }, [tasks, lists, filters])
+  }, [tasks, lists, filters, me, partner])
 
   const visibleLists = useMemo(() => {
-    const filtering = filters.scope === 'assigned' || filters.labels.length > 0 || filters.q || filters.due !== 'any'
+    const filtering = filters.scope === 'assigned' || filters.scope === 'tome' || filters.labels.length > 0 || filters.q || filters.due !== 'any'
     return lists.filter((l) => {
       if (filters.scope === 'mine' && l.isShared) return false
       if (filters.scope === 'shared' && !l.isShared) return false
@@ -149,10 +152,10 @@ export default function App() {
         replace(t.id, t)
         await api.updateTask(t)
       }
-      if (opts.notifyIntegrator) {
+      if (opts.notifyPartner) {
         await api.sendMail({
-          to: config.integratorEmail,
-          subject: `New To Do assigned to you: ${t.title}`,
+          to: partner.email,
+          subject: `${me.name} assigned you a To Do: ${t.title}`,
           html: `<p>${user?.name ?? 'Someone'} assigned you a To Do:</p><h3>${t.title}</h3>` +
             (t.due ? `<p><b>Due:</b> ${t.due}</p>` : '') +
             (t.notes ? `<p>${t.notes.replace(/\n/g, '<br>')}</p>` : '') +
@@ -215,7 +218,7 @@ export default function App() {
           <button className="btn ghost" onClick={() => void signOut()}><span className="lbl">{user?.name ?? 'Account'} · </span>Sign out</button>
         )}
       </header>
-      <FilterBar f={filters} set={setFilters} allLabels={allLabels} />
+      <FilterBar f={filters} set={setFilters} allLabels={allLabels} partner={partner} />
       {loadError && (() => {
         const d = describeError(loadError)
         return (
@@ -237,7 +240,7 @@ export default function App() {
           : <Board lists={visibleLists} tasks={visibleTasks} onOpen={setEditing} onToggle={toggle} onMove={move} onAdd={add} />}
       {editing && (
         <TaskModal
-          task={editing} lists={lists} allLabels={allLabels}
+          task={editing} lists={lists} allLabels={allLabels} me={me} partner={partner}
           onClose={() => setEditing(null)} onSave={save} onDelete={remove} onBlock={block}
         />
       )}

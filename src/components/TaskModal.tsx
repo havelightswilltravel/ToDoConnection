@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { assignLabel, config } from '../lib/config'
+import { isPersonLabel, personLabel, type Person } from '../lib/config'
 import { todayStr } from '../lib/dates'
 import type { Importance, Status, Task, TaskList } from '../lib/types'
 
-export interface SaveOpts { notifyIntegrator: boolean }
+export interface SaveOpts { notifyPartner: boolean }
 
-export default function TaskModal({ task, lists, allLabels, onClose, onSave, onDelete, onBlock }: {
-  task: Task; lists: TaskList[]; allLabels: string[]
+export default function TaskModal({ task, lists, allLabels, me, partner, onClose, onSave, onDelete, onBlock }: {
+  task: Task; lists: TaskList[]; allLabels: string[]; me: Person; partner: Person
   onClose: () => void
   onSave: (t: Task, o: SaveOpts) => void
   onDelete: (t: Task) => void
@@ -20,17 +20,30 @@ export default function TaskModal({ task, lists, allLabels, onClose, onSave, onD
   const [minutes, setMinutes] = useState(60)
   const [blocking, setBlocking] = useState(false)
 
-  const assigned = t.labels.includes(assignLabel)
+  const partnerLabel = personLabel(partner)
+  const assigned = t.labels.includes(partnerLabel)
+  const wasAssigned = task.labels.includes(partnerLabel)
   const list = lists.find((l) => l.id === t.listId)
-  const canNotify = !!config.integratorEmail
+  const sharedLists = lists.filter((l) => l.isShared)
+  const shared = !!list?.isShared
+  // the non-shared list this card lived in, so switching sharing off puts it back
+  const homeList = (lists.find((l) => l.id === task.listId && !l.isShared) ?? lists.find((l) => !l.isShared))?.id
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setT((p) => ({ ...p, [k]: v }))
   const addLabel = (raw: string) => {
     const l = raw.trim().replace(/^#/, '')
     if (l && !t.labels.includes(l)) set('labels', [...t.labels, l])
     setNewLabel('')
   }
-  const toggleAssign = () =>
-    set('labels', assigned ? t.labels.filter((l) => l !== assignLabel) : [...t.labels, assignLabel])
+  // "Share with" = the card sits in a list both of you can open in Microsoft To Do.
+  const toggleShare = () => {
+    if (shared) { if (homeList) set('listId', homeList) }
+    else if (sharedLists[0]) set('listId', sharedLists[0].id)
+  }
+  // "Assign to" = flag it as theirs to do. Assigning also shares it, otherwise they couldn't see it.
+  const toggleAssign = () => {
+    if (assigned) { set('labels', t.labels.filter((l) => l !== partnerLabel)); return }
+    setT((p) => ({ ...p, labels: [...p.labels, partnerLabel], listId: shared || !sharedLists[0] ? p.listId : sharedLists[0].id }))
+  }
 
   const block = async () => {
     setBlocking(true)
@@ -73,7 +86,7 @@ export default function TaskModal({ task, lists, allLabels, onClose, onSave, onD
         <div className="field">
           <span className="field-label">Keywords</span>
           <div className="chips">
-            {t.labels.filter((l) => l !== assignLabel).map((l) => (
+            {t.labels.filter((l) => !isPersonLabel(l)).map((l) => (
               <button key={l} className="chip on" onClick={() => set('labels', t.labels.filter((x) => x !== l))}>{l} ✕</button>
             ))}
             <input
@@ -94,17 +107,29 @@ export default function TaskModal({ task, lists, allLabels, onClose, onSave, onD
         <div className="panel">
           <div className="panel-row">
             <div>
-              <strong>Assign to {config.integratorName}</strong>
+              <strong>Share with {partner.name}</strong>
               <p className="hint">
-                {list?.isShared
-                  ? `${config.integratorName} can see this card because “${list.name}” is shared with them.`
-                  : `Move this card to a shared list so ${config.integratorName} can see it in their To Do.`}
+                {sharedLists.length === 0
+                  ? `No shared list yet. In Microsoft To Do, open a list → Share list → invite ${partner.name}. It will appear here marked “Shared”.`
+                  : shared
+                    ? `Both you and ${partner.name} can see this card (in “${list?.name}”).`
+                    : `Move this card to a shared list so ${partner.name} can see it too.`}
               </p>
             </div>
-            <button className={`switch ${assigned ? 'on' : ''}`} onClick={toggleAssign} aria-pressed={assigned} aria-label="Assign"><i /></button>
+            <button className={`switch ${shared ? 'on' : ''}`} onClick={toggleShare} disabled={sharedLists.length === 0} aria-pressed={shared} aria-label={`Share with ${partner.name}`}><i /></button>
           </div>
-          {assigned && canNotify && !task.labels.includes(assignLabel) && (
-            <label className="inline"><input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} /> Email {config.integratorName} a heads-up</label>
+        </div>
+
+        <div className="panel">
+          <div className="panel-row">
+            <div>
+              <strong>Assign to {partner.name}</strong>
+              <p className="hint">Marks it as {partner.name}’s to do ({partnerLabel}). It stays shared with you, so you can both follow it.</p>
+            </div>
+            <button className={`switch ${assigned ? 'on' : ''}`} onClick={toggleAssign} aria-pressed={assigned} aria-label={`Assign to ${partner.name}`}><i /></button>
+          </div>
+          {assigned && !wasAssigned && (
+            <label className="inline"><input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} /> Email {partner.name} a heads-up</label>
           )}
         </div>
 
@@ -124,7 +149,7 @@ export default function TaskModal({ task, lists, allLabels, onClose, onSave, onD
           <button className="btn danger" onClick={() => confirm('Delete this card?') && onDelete(task)}>Delete</button>
           <span style={{ flex: 1 }} />
           <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={() => onSave(t, { notifyIntegrator: assigned && notify && canNotify && !task.labels.includes(assignLabel) })}>Save</button>
+          <button className="btn primary" onClick={() => onSave(t, { notifyPartner: assigned && notify && !wasAssigned })}>Save</button>
         </footer>
       </div>
     </div>
