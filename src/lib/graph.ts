@@ -53,12 +53,20 @@ export async function signOut() {
   await m.logoutRedirect()
 }
 
-async function token(): Promise<string> {
+// One token request at a time: the board fires several Graph calls together, and parallel renewals
+// (or parallel sign-in redirects) used to collide and fail.
+let inflight: Promise<string> | null = null
+function token(force = false): Promise<string> {
+  if (!inflight) inflight = fetchToken(force).finally(() => { inflight = null })
+  return inflight
+}
+
+async function fetchToken(force: boolean): Promise<string> {
   const m = await getMsal()
   const account = m.getActiveAccount() ?? m.getAllAccounts()[0]
   if (!account) throw new Error('Not signed in')
   try {
-    return (await m.acquireTokenSilent({ scopes: SCOPES, account })).accessToken
+    return (await m.acquireTokenSilent({ scopes: SCOPES, account, forceRefresh: force })).accessToken
   } catch (e) {
     // Silent renewal can fail (expired session) or time out (browsers that block the hidden
     // sign-in frame: Safari, Brave, strict Chrome). Fall back to a normal Microsoft sign-in page.
@@ -84,15 +92,21 @@ function redirectedRecently() {
 }
 
 async function call<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+  let refreshed = false
   for (let attempt = 0; ; attempt++) {
     const res = await fetch(path.startsWith('http') ? path : GRAPH + path, {
       ...init,
       headers: {
-        Authorization: `Bearer ${await token()}`,
+        Authorization: `Bearer ${await token(refreshed)}`,
         'Content-Type': 'application/json',
         ...init.headers,
       },
     })
+    // Token rejected (expired/revoked): get a fresh one once and retry.
+    if (res.status === 401 && !refreshed) {
+      refreshed = true
+      continue
+    }
     // Microsoft asks us to slow down: wait the time it names (capped), then try again.
     if ((res.status === 429 || res.status === 503) && attempt < 3) {
       const wait = Math.min(Number(res.headers.get('Retry-After')) || 2 ** (attempt + 1), 20)

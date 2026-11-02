@@ -211,3 +211,13 @@ textarea { resize: vertical; }
   .toast { bottom: calc(20px + env(safe-area-inset-bottom)); }
 }
 @keyframes sheet { from { transform: translateY(100%); } }
+
+/* load-error banner */
+.banner { margin: 12px 24px 0; padding: 14px 18px; border-radius: var(--r-md); background: rgba(255,59,48,.1); border: 1px solid rgba(255,59,48,.25); }
+.banner.big { margin: 40px auto; max-width: 520px; text-align: center; padding: 28px; }
+.banner strong { font-size: 17px; }
+.banner p { margin: 6px 0 10px; color: var(--muted); }
+.banner details { font-size: 12px; color: var(--muted); text-align: left; }
+.banner code { display: block; margin-top: 6px; word-break: break-all; }
+.banner-actions { display: flex; gap: 8px; margin-top: 12px; justify-content: center; }
+@media (max-width: 700px) { .banner { margin: 10px 14px 0; } .banner.big { margin: 24px 14px; } }

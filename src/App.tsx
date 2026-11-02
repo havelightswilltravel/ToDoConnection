@@ -4,6 +4,7 @@ import FilterBar, { defaultFilters, type Filters } from './components/FilterBar'
 import TaskModal, { type SaveOpts } from './components/TaskModal'
 import { assignLabel, config, demoMode } from './lib/config'
 import { currentAccount, graphApi, signIn, signOut } from './lib/graph'
+import { describeError } from './lib/errors'
 import { mockApi } from './lib/mock'
 import { todayStr } from './lib/dates'
 import type { Task, TaskList } from './lib/types'
@@ -19,6 +20,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [filters, setFilters] = useState<Filters>(defaultFilters)
   const [editing, setEditing] = useState<Task | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null)
 
   const say = useCallback((msg: string, err = false) => {
@@ -53,10 +55,12 @@ export default function App() {
       setUser(me)
       setLists(ls)
       setTasks(all)
+      setLoadError(null)
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       if (/rate-limiting|429/.test(msg)) backoffUntil.current = Date.now() + 5 * 60_000
-      if (!background) say(msg, true)
+      // Never fail silently: keep the reason on screen until a load succeeds.
+      if (!background || describeError(msg).signIn) setLoadError(msg)
     } finally {
       if (!background) setLoading(false)
     }
@@ -212,9 +216,25 @@ export default function App() {
         )}
       </header>
       <FilterBar f={filters} set={setFilters} allLabels={allLabels} />
+      {loadError && (() => {
+        const d = describeError(loadError)
+        return (
+          <div className={`banner ${lists.length === 0 ? 'big' : ''}`} role="alert">
+            <strong>{d.title}</strong>
+            <p>{d.hint}</p>
+            <details><summary>Technical details</summary><code>{loadError}</code></details>
+            <div className="banner-actions">
+              <button className="btn primary" onClick={() => void (d.signIn ? signIn() : load())}>{d.signIn ? 'Sign in again' : 'Try again'}</button>
+              {d.signIn && <button className="btn" onClick={() => void load()}>Try again</button>}
+            </div>
+          </div>
+        )
+      })()}
       {loading && lists.length === 0
         ? <div className="center"><div className="spinner" /></div>
-        : <Board lists={visibleLists} tasks={visibleTasks} onOpen={setEditing} onToggle={toggle} onMove={move} onAdd={add} />}
+        : lists.length === 0 && loadError
+          ? null
+          : <Board lists={visibleLists} tasks={visibleTasks} onOpen={setEditing} onToggle={toggle} onMove={move} onAdd={add} />}
       {editing && (
         <TaskModal
           task={editing} lists={lists} allLabels={allLabels}
