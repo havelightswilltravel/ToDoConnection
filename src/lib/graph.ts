@@ -20,6 +20,15 @@ const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone
 
 let msal: PublicClientApplication | null = null
 
+// HLWT Hub: inside the hub's frame, Microsoft's sign-in page refuses to load (it can't be
+// framed), so sign-in and token renewal use a pop-up window instead of a full-page redirect.
+// At the top level (todo.hlwt.com opened directly) nothing changes.
+export const embedded = (() => {
+  try { return window.self !== window.top } catch { return true }
+})()
+// Must also be registered as a Single-page application redirect URI in Entra.
+const POPUP_REDIRECT = () => `${window.location.origin}/popup.html`
+
 async function getMsal() {
   if (!msal) {
     msal = new PublicClientApplication({
@@ -45,11 +54,22 @@ export async function currentAccount(): Promise<AccountInfo | null> {
 
 export async function signIn() {
   const m = await getMsal()
+  if (embedded) {
+    const r = await m.loginPopup({ scopes: SCOPES, redirectUri: POPUP_REDIRECT() })
+    m.setActiveAccount(r.account)
+    window.location.reload()
+    return
+  }
   await m.loginRedirect({ scopes: SCOPES })
 }
 
 export async function signOut() {
   const m = await getMsal()
+  if (embedded) {
+    await m.logoutPopup({ postLogoutRedirectUri: POPUP_REDIRECT(), mainWindowRedirectUri: window.location.href })
+    window.location.reload()
+    return
+  }
   await m.logoutRedirect()
 }
 
@@ -73,6 +93,9 @@ async function fetchToken(force: boolean): Promise<string> {
     const needsSignIn =
       e instanceof InteractionRequiredAuthError ||
       (e instanceof BrowserAuthError && e.errorCode !== 'interaction_in_progress')
+    if (needsSignIn && embedded) {
+      return (await m.acquireTokenPopup({ scopes: SCOPES, account, redirectUri: POPUP_REDIRECT() })).accessToken
+    }
     if (needsSignIn && !redirectedRecently()) {
       await m.acquireTokenRedirect({ scopes: SCOPES, account })
       return new Promise<string>(() => {}) // page is navigating away

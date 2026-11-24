@@ -43,3 +43,9 @@ Vercel (or Netlify): import this repo, add the four `VITE_*` variables, deploy. 
 ## Brand colors
 
 Edit the variables at the top of `src/styles.css` (`--brand`, `--gold`, `--navy`).
+
+## HLWT Hub integration (inert until configured)
+
+- **Framing:** set `HUB_ORIGIN=https://hub.hlwt.com` in Vercel and redeploy. `middleware.ts` (Vercel Routing Middleware) then allows only the hub to show To Do's inside a frame. With it unset, nothing changes.
+- **Sign-in inside the hub:** Microsoft's sign-in page can't be shown inside a frame, so when To Do's runs inside the hub it signs in through a pop-up instead (`src/lib/graph.ts`, `popup.html`). Opened directly, it still uses the normal full-page redirect.
+  Add `https://todo.hlwt.com/popup.html` as a **Single-page application** redirect URI in this app's Entra registration.
