@@ -358,6 +358,17 @@ async function callback(request, url) {
   return redirect(to.toString(), { "set-cookie": setCookieHeader(url, session, maxAge) });
 }
 
+/**
+ * For an app NOT yet enforcing the hub (HUB_ENFORCE unset): once the hub has
+ * HUB_SHARED_SECRET it opens every page through <app>/hub/callback. Skip the ticket and go
+ * to the page, so the app keeps working with its own sign-in. Returns null for other paths.
+ */
+export function legacyCallback(request) {
+  const url = new URL(request.url);
+  if (url.pathname !== "/hub/callback") return null;
+  return redirect(new URL(safeNext(url.searchParams.get("next") || "/", url), url.origin).toString());
+}
+
 /** Hub side: mint a ticket for one app origin. */
 export async function mintTicket({ origin, email, name, role, pages }, ttl = 60) {
   const now = Math.floor(Date.now() / 1000);

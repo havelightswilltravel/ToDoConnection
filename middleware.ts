@@ -11,7 +11,7 @@
 //    decides who may open it.
 // With neither set, the site behaves exactly as before.
 import { next } from '@vercel/functions'
-import { hubEnforced, hubFrameAncestors, hubGate, hubUser } from './hub/hub-gate.mjs'
+import { hubEnforced, hubFrameAncestors, hubGate, hubUser, legacyCallback } from './hub/hub-gate.mjs'
 
 const HUB = {
   pages: { '/*': 'management.todos' },
@@ -21,7 +21,8 @@ const HUB = {
 export default async function middleware(request: Request) {
   const ancestors = hubFrameAncestors()
   const headers: Record<string, string> = ancestors ? { 'Content-Security-Policy': `frame-ancestors ${ancestors}` } : {}
-  if (!hubEnforced()) return next({ headers })
+  // Not enforcing yet, but the hub may already open pages through /hub/callback.
+  if (!hubEnforced()) return legacyCallback(request) ?? next({ headers })
 
   const { response, session } = await hubGate(request, HUB)
   if (response) {

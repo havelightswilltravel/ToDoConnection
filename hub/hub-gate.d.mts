@@ -24,3 +24,4 @@ export function hubUser(session: HubSession | null): HubUser | null;
 export function pageFor(pathname: string, pageMap: Record<string, string>): string | null;
 export function hubGate(request: Request, cfg: HubGateConfig): Promise<{ response?: Response; session?: HubSession | null }>;
 export function mintTicket(t: { origin: string; email: string; name?: string; role?: string; pages: string[] }, ttl?: number): Promise<string>;
+export function legacyCallback(request: Request): Response | null;

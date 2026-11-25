@@ -128,3 +128,11 @@ test("server-side read from headers", async () => {
   const h2 = new Headers({ cookie, host: "other.hlwt.com", "x-forwarded-proto": "https" });
   assert.equal(await g.sessionFromHeaders((n) => h2.get(n)), null);
 });
+
+test("legacy apps skip the ticket and open the page", () => {
+  const r = g.legacyCallback(req("/hub/callback?ticket=abc&next=/pnl%3Fa%3D1"));
+  assert.equal(r.status, 302);
+  assert.equal(r.headers.get("location"), APP + "/pnl?a=1");
+  assert.equal(g.legacyCallback(req("/pnl")), null);
+  assert.equal(g.legacyCallback(req("/hub/callback?next=//evil.com")).headers.get("location"), APP + "/");
+});
