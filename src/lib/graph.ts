@@ -47,20 +47,52 @@ async function getMsal() {
   return msal
 }
 
+// HLWT Hub: who the hub signed in (null when To Do's isn't behind the hub, e.g. local dev).
+let hubWho: Promise<{ email: string; name: string } | null> | null = null
+export function hubIdentity() {
+  if (!hubWho) {
+    hubWho = fetch('/hub/me', { credentials: 'same-origin', cache: 'no-store' })
+      .then(async (r) => (r.ok ? ((await r.json()) as { email: string; name: string }) : null))
+      .catch(() => null)
+  }
+  return hubWho
+}
+
 export async function currentAccount(): Promise<AccountInfo | null> {
   const m = await getMsal()
+  const hub = await hubIdentity()
+  if (hub?.email) {
+    // Through the hub: use the Microsoft account of the person the hub signed in, never
+    // someone else's left in this browser.
+    const want = hub.email.toLowerCase()
+    const known = m.getAllAccounts().find((a) => a.username.toLowerCase() === want)
+    if (known) {
+      m.setActiveAccount(known)
+      return known
+    }
+    // Silent single sign-on with the hub's email as the hint: no Microsoft screen when the
+    // browser still has a Microsoft session and allows Microsoft's hidden frame.
+    try {
+      const r = await m.ssoSilent({ scopes: SCOPES, loginHint: hub.email })
+      m.setActiveAccount(r.account)
+      return r.account
+    } catch {
+      return null // the board shows one "Continue as …" button (a pop-up needs a click)
+    }
+  }
   return m.getActiveAccount() ?? m.getAllAccounts()[0] ?? null
 }
 
 export async function signIn() {
   const m = await getMsal()
+  const loginHint = (await hubIdentity())?.email
   if (embedded) {
-    const r = await m.loginPopup({ scopes: SCOPES, redirectUri: POPUP_REDIRECT() })
+    const r = await m.loginPopup({ scopes: SCOPES, redirectUri: POPUP_REDIRECT(), loginHint })
     m.setActiveAccount(r.account)
     window.location.reload()
     return
   }
-  await m.loginRedirect({ scopes: SCOPES })
+  await m.loginRedirect({ scopes: SCOPES, loginHint })
 }
 
 export async function signOut() {

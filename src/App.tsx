@@ -3,7 +3,7 @@ import Board from './components/Board'
 import FilterBar, { defaultFilters, type Filters } from './components/FilterBar'
 import TaskModal, { type SaveOpts } from './components/TaskModal'
 import { demoMode, personLabel, who } from './lib/config'
-import { currentAccount, graphApi, signIn, signOut } from './lib/graph'
+import { currentAccount, graphApi, hubIdentity, signIn, signOut } from './lib/graph'
 import { describeError } from './lib/errors'
 import ShareGuide from './components/ShareGuide'
 import { mockApi } from './lib/mock'
@@ -16,6 +16,8 @@ export default function App() {
   const [ready, setReady] = useState(demoMode)
   const [authed, setAuthed] = useState(demoMode)
   const [user, setUser] = useState<{ name: string; email: string } | null>(null)
+  // Opened through the HLWT Hub: the hub owns sign-in, so no Sign out here.
+  const [hubUser, setHubUser] = useState<{ name: string; email: string } | null>(null)
   const [lists, setLists] = useState<TaskList[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(false)
@@ -37,6 +39,7 @@ export default function App() {
 
   useEffect(() => {
     if (demoMode) return
+    hubIdentity().then(setHubUser)
     currentAccount().then((a) => { setAuthed(!!a); setReady(true) })
   }, [])
 
@@ -218,7 +221,11 @@ export default function App() {
           <img className="logo" src="/logo.png" alt="HLWT" />
           <h1>ToDoConnection</h1>
           <p>Your Microsoft To Do, as a board.</p>
-          <button className="btn primary big" onClick={() => void signIn()}>Sign in with Microsoft</button>
+          {hubUser ? (
+            <button className="btn primary big" onClick={() => void signIn()}>Continue as {hubUser.email}</button>
+          ) : (
+            <button className="btn primary big" onClick={() => void signIn()}>Sign in with Microsoft</button>
+          )}
         </div>
       </div>
     )
@@ -232,7 +239,7 @@ export default function App() {
         <span style={{ flex: 1 }} />
         <button className="btn" onClick={newList} aria-label="New list">+<span className="lbl"> New list</span></button>
         <button className="btn" onClick={() => void load()} disabled={loading} aria-label="Refresh">↻<span className="lbl">{loading ? ' Syncing…' : ' Refresh'}</span></button>
-        {!demoMode && (
+        {!demoMode && !hubUser && (
           <button className="btn ghost" onClick={() => void signOut()}><span className="lbl">{user?.name ?? 'Account'} · </span>Sign out</button>
         )}
       </header>

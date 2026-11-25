@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test hub/hub-gate.test.mjs"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.25.1",
